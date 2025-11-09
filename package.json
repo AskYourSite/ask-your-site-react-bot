@@ -8,6 +8,10 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AskYourSite/ask-your-site-react-bot.git"
+  },
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
