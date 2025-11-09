@@ -10,7 +10,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AskYourSite/ask-your-site-react-bot.git"
+    "url": "git+https://github.com/AskYourSite/react-widget.git"
   },
   "scripts": {
     "build": "rollup -c",
