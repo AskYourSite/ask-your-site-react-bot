@@ -1,34 +1,40 @@
 export interface ChatbotConfig {
   chatbotName: string;
   welcomeMessage: string;
-  businessProfile: 'ecommerce' | 'saas' | 'professional' | 'content';
-  primaryLanguage: string;
+  businessProfile: string;
+  assistantProfile?: string;
   primaryColor: string;
-  avatarUrl?: string;
   position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  siteName: string;
+  siteUrl: string;
+  avatarUrl?: string; // Optional avatar for the assistant
 }
 
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  timestamp: Date;
+  createdAt: string;
 }
 
 export interface ChatRequest {
   message: string;
-  conversationId?: string;
 }
 
 export interface ChatResponse {
-  message: string;
-  conversationId: string;
+  success: boolean;
+  message: Message;
+  sessionToken?: string; // Only present on first message (session creation)
 }
 
-export interface ApiResponse<T> {
+export interface ConfigResponse {
   success: boolean;
-  data?: T;
-  error?: string;
+  config: ChatbotConfig;
+}
+
+export interface CachedConfig {
+  data: ChatbotConfig;
+  timestamp: number;
 }
 
 export interface AskMySiteProps {

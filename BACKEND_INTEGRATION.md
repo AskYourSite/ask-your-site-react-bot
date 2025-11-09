@@ -1,649 +1,1296 @@
-# 🔗 Backend Integration Guide
+# 🔗 Backend Integration Guide# 🔗 Backend Integration Guide
 
-Complete guide for backend developers to implement the API endpoints required by the AskMySite React Widget.
 
----
 
-## 📋 Table of Contents
+Complete guide for implementing the AskMySite React Widget backend API with session-based architecture.Complete guide for backend developers to implement the API endpoints required by the AskMySite React Widget.
 
-1. [API Endpoints Overview](#api-endpoints-overview)
-2. [Authentication](#authentication)
-3. [Endpoint 1: Get Chatbot Config](#endpoint-1-get-chatbot-config)
+
+
+------
+
+
+
+## 📋 System Overview## 📋 Table of Contents
+
+
+
+**Ultra-simple chat system with only 2 endpoints:**1. [API Endpoints Overview](#api-endpoints-overview)
+
+1. **GET /api/chatbot/config** - Get chatbot configuration (cache 24h)2. [Authentication](#authentication)
+
+2. **POST /api/chatbot/chat** - Send messages (auto-creates session)3. [Endpoint 1: Get Chatbot Config](#endpoint-1-get-chatbot-config)
+
 4. [Endpoint 2: Send Chat Message](#endpoint-2-send-chat-message)
-5. [Error Handling](#error-handling)
-6. [Security Implementation](#security-implementation)
-7. [Testing](#testing)
 
----
+**Key Design Principles:**5. [Error Handling](#error-handling)
 
-## 🎯 API Endpoints Overview
+- ✅ Config is static → Fetch once, cache 24h in localStorage6. [Security Implementation](#security-implementation)
 
-The widget requires **2 endpoints** to function:
+- ✅ Sessions auto-created → No separate init call needed7. [Testing](#testing)
 
-| Endpoint | Method | Purpose | Auth |
+- ✅ Messages in localStorage → Instant display on page load
+
+- ✅ Zero unnecessary API calls → Fast, efficient widget---
+
+
+
+---## 🎯 API Endpoints Overview
+
+
+
+## 🎯 API EndpointsThe widget requires **2 endpoints** to function:
+
+
+
+### 1. Get Configuration (Cached 24h)| Endpoint | Method | Purpose | Auth |
+
 |----------|--------|---------|------|
-| `/api/chatbot/config` | GET | Fetch chatbot configuration | API Key |
+
+**GET `/api/chatbot/config`**| `/api/chatbot/config` | GET | Fetch chatbot configuration | API Key |
+
 | `/api/chatbot/chat` | POST | Send/receive messages | API Key |
+
+Fetches chatbot configuration. **Widget caches this for 24 hours in localStorage.**
 
 **Base URL**: `https://api.askmysite.com` (configurable)
 
----
+#### Request
 
-## 🔑 Authentication
+```http---
+
+GET /api/chatbot/config
+
+Authorization: Bearer cb_your_api_key## 🔑 Authentication
+
+```
 
 ### API Key Format
-```
-sk_live_1234567890abcdef  (production)
-sk_test_1234567890abcdef  (testing)
-```
 
-### Request Headers
-```http
-Authorization: Bearer sk_live_1234567890abcdef
-Content-Type: application/json
-```
+#### Response (200 OK)```
 
-### Validation Steps
-1. Extract API key from `Authorization` header
-2. Verify key exists in database
-3. Check key is active (not revoked)
-4. Validate domain origin (from request headers)
-5. Check rate limits
+```jsonsk_live_1234567890abcdef  (production)
+
+{sk_test_1234567890abcdef  (testing)
+
+  "success": true,```
+
+  "config": {
+
+    "chatbotName": "Support Assistant",### Request Headers
+
+    "welcomeMessage": "Hello! How can I help you today?",```http
+
+    "businessProfile": "ecommerce",Authorization: Bearer sk_live_1234567890abcdef
+
+    "assistantProfile": "friendly and helpful",Content-Type: application/json
+
+    "primaryColor": "#4F46E5",```
+
+    "position": "bottom-right",
+
+    "siteName": "My Store",### Validation Steps
+
+    "siteUrl": "https://example.com",1. Extract API key from `Authorization` header
+
+    "avatarUrl": "https://cdn.example.com/avatar.png"2. Verify key exists in database
+
+  }3. Check key is active (not revoked)
+
+}4. Validate domain origin (from request headers)
+
+```5. Check rate limits
+
 6. Return 401 if validation fails
 
+#### Config Fields
+
 ---
 
-## 📡 Endpoint 1: Get Chatbot Config
+| Field | Type | Required | Description |
 
-### Request
+|-------|------|----------|-------------|## 📡 Endpoint 1: Get Chatbot Config
 
-```http
-GET /api/chatbot/config
-Host: api.askmysite.com
-Authorization: Bearer sk_live_1234567890abcdef
-Origin: https://example.com
-```
+| `chatbotName` | string | ✅ | Display name (e.g., "Support Bot") |
 
-### Response (Success - 200 OK)
+| `welcomeMessage` | string | ✅ | Initial greeting message |### Request
 
-```json
-{
+| `businessProfile` | string | ✅ | Business type (e.g., "ecommerce", "saas") |
+
+| `assistantProfile` | string | ❌ | Personality description (optional) |```http
+
+| `primaryColor` | string | ✅ | Hex color code (e.g., "#4F46E5") |GET /api/chatbot/config
+
+| `position` | string | ✅ | "bottom-right", "bottom-left", "top-right", "top-left" |Host: api.askmysite.com
+
+| `siteName` | string | ✅ | Website name |Authorization: Bearer sk_live_1234567890abcdef
+
+| `siteUrl` | string | ✅ | Website URL |Origin: https://example.com
+
+| `avatarUrl` | string | ❌ | Avatar image URL (optional) |```
+
+
+
+#### Widget Caching Strategy### Response (Success - 200 OK)
+
+```typescript
+
+// Widget automatically caches config for 24h```json
+
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours{
+
   "success": true,
-  "data": {
-    "chatbotName": "Support Assistant",
-    "welcomeMessage": "Hi! I'm here to help you with any questions about our products and services. How can I assist you today?",
-    "businessProfile": "ecommerce",
+
+// First visit: Fetches from API  "data": {
+
+// Return visits within 24h: Loads from localStorage    "chatbotName": "Support Assistant",
+
+// After 24h: Re-fetches from API    "welcomeMessage": "Hi! I'm here to help you with any questions about our products and services. How can I assist you today?",
+
+```    "businessProfile": "ecommerce",
+
     "primaryLanguage": "en",
-    "primaryColor": "#007bff",
+
+---    "primaryColor": "#007bff",
+
     "avatarUrl": "https://cdn.askmysite.com/avatars/bot-123.png",
-    "position": "bottom-right"
+
+### 2. Send Message (Auto-Session Creation)    "position": "bottom-right"
+
   }
-}
+
+**POST `/api/chatbot/chat`**}
+
 ```
+
+Sends message and receives response. **Automatically creates session if X-Session-Token is missing.**
 
 ### Response Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `chatbotName` | string | ✅ | Display name (e.g., "Support Bot") |
-| `welcomeMessage` | string | ✅ | Initial greeting message |
+#### Request (First Message - No Session)
+
+```http| Field | Type | Required | Description |
+
+POST /api/chatbot/chat|-------|------|----------|-------------|
+
+Authorization: Bearer cb_your_api_key| `chatbotName` | string | ✅ | Display name (e.g., "Support Bot") |
+
+Content-Type: application/json| `welcomeMessage` | string | ✅ | Initial greeting message |
+
 | `businessProfile` | enum | ✅ | 'ecommerce' \| 'saas' \| 'professional' \| 'content' |
-| `primaryLanguage` | string | ✅ | ISO language code (e.g., 'en', 'fr', 'es') |
-| `primaryColor` | string | ✅ | Hex color code (e.g., '#007bff') |
-| `avatarUrl` | string | ❌ | CDN URL to avatar image (optional) |
-| `position` | enum | ✅ | 'bottom-right' \| 'bottom-left' \| 'top-right' \| 'top-left' |
 
-### Backend Logic
+{| `primaryLanguage` | string | ✅ | ISO language code (e.g., 'en', 'fr', 'es') |
 
-```typescript
-// Example implementation (Node.js/Express)
-app.get('/api/chatbot/config', async (req, res) => {
-  try {
+  "message": "What are your pricing options?"| `primaryColor` | string | ✅ | Hex color code (e.g., '#007bff') |
+
+}| `avatarUrl` | string | ❌ | CDN URL to avatar image (optional) |
+
+```| `position` | enum | ✅ | 'bottom-right' \| 'bottom-left' \| 'top-right' \| 'top-left' |
+
+
+
+#### Request (Existing Session)### Backend Logic
+
+```http
+
+POST /api/chatbot/chat```typescript
+
+Authorization: Bearer cb_your_api_key// Example implementation (Node.js/Express)
+
+X-Session-Token: abc123def456ghi789app.get('/api/chatbot/config', async (req, res) => {
+
+Content-Type: application/json  try {
+
     // 1. Extract and validate API key
-    const apiKey = req.headers.authorization?.replace('Bearer ', '');
-    if (!apiKey) {
-      return res.status(401).json({
-        success: false,
+
+{    const apiKey = req.headers.authorization?.replace('Bearer ', '');
+
+  "message": "Tell me more about the premium plan"    if (!apiKey) {
+
+}      return res.status(401).json({
+
+```        success: false,
+
         error: 'API key required'
-      });
-    }
 
-    // 2. Fetch chatbot from database
-    const chatbot = await db.chatbots.findOne({ apiKey });
-    if (!chatbot) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid API key'
-      });
-    }
+#### Response (New Session - includes sessionToken)      });
 
-    // 3. Validate domain origin
+```json    }
+
+{
+
+  "success": true,    // 2. Fetch chatbot from database
+
+  "message": {    const chatbot = await db.chatbots.findOne({ apiKey });
+
+    "id": "msg_abc123",    if (!chatbot) {
+
+    "role": "assistant",      return res.status(401).json({
+
+    "content": "Our pricing starts at $9/month...",        success: false,
+
+    "createdAt": "2025-11-09T10:05:00Z"        error: 'Invalid API key'
+
+  },      });
+
+  "sessionToken": "new_session_token_here"    }
+
+}
+
+```    // 3. Validate domain origin
+
     const origin = req.headers.origin;
-    if (!chatbot.allowedDomains.includes(origin)) {
-      return res.status(403).json({
-        success: false,
-        error: 'Domain not authorized'
-      });
-    }
 
-    // 4. Return configuration
-    res.json({
-      success: true,
-      data: {
-        chatbotName: chatbot.name,
+#### Response (Existing Session - no sessionToken)    if (!chatbot.allowedDomains.includes(origin)) {
+
+```json      return res.status(403).json({
+
+{        success: false,
+
+  "success": true,        error: 'Domain not authorized'
+
+  "message": {      });
+
+    "id": "msg_def456",    }
+
+    "role": "assistant",
+
+    "content": "The premium plan includes...",    // 4. Return configuration
+
+    "createdAt": "2025-11-09T10:06:00Z"    res.json({
+
+  }      success: true,
+
+}      data: {
+
+```        chatbotName: chatbot.name,
+
         welcomeMessage: chatbot.welcomeMessage,
-        businessProfile: chatbot.businessProfile,
+
+#### Message Object        businessProfile: chatbot.businessProfile,
+
         primaryLanguage: chatbot.primaryLanguage,
-        primaryColor: chatbot.primaryColor,
-        avatarUrl: chatbot.avatarUrl,
-        position: chatbot.position
-      }
-    });
-  } catch (error) {
+
+| Field | Type | Description |        primaryColor: chatbot.primaryColor,
+
+|-------|------|-------------|        avatarUrl: chatbot.avatarUrl,
+
+| `id` | string | Unique message ID |        position: chatbot.position
+
+| `role` | string | "user" or "assistant" |      }
+
+| `content` | string | Message text content |    });
+
+| `createdAt` | string | ISO 8601 timestamp |  } catch (error) {
+
     res.status(500).json({
-      success: false,
+
+---      success: false,
+
       error: 'Internal server error'
-    });
+
+## 🔐 Authentication    });
+
   }
-});
+
+### API Key Format});
+
+``````
+
+cb_live_1234567890abcdef  (production)
+
+cb_test_1234567890abcdef  (testing)### Error Responses
+
 ```
 
-### Error Responses
-
 ```json
-// 401 Unauthorized
-{
-  "success": false,
-  "error": "Invalid API key"
-}
+
+### Headers// 401 Unauthorized
+
+```http{
+
+Authorization: Bearer cb_live_1234567890abcdef  "success": false,
+
+X-Session-Token: session_token_here  (optional, auto-created if missing)  "error": "Invalid API key"
+
+Content-Type: application/json}
+
+```
 
 // 403 Forbidden
-{
-  "success": false,
-  "error": "Domain not authorized"
+
+### Validation Flow{
+
+```typescript  "success": false,
+
+1. Extract API key from Authorization header  "error": "Domain not authorized"
+
+2. Verify key exists and is active}
+
+3. Validate origin domain matches chatbot's allowed domains
+
+4. Check X-Session-Token if present// 500 Internal Server Error
+
+5. Auto-create session if token missing or invalid{
+
+6. Rate limit check  "success": false,
+
+```  "error": "Internal server error"
+
 }
 
-// 500 Internal Server Error
-{
-  "success": false,
-  "error": "Internal server error"
-}
-```
+---```
 
----
 
-## 💬 Endpoint 2: Send Chat Message
 
-### Request
+## 💻 Implementation Example---
 
-```http
-POST /api/chatbot/chat
+
+
+### Complete Backend Logic (Node.js/Express)## 💬 Endpoint 2: Send Chat Message
+
+
+
+```typescript### Request
+
+import express from 'express';
+
+import { prisma } from './db';```http
+
+import { generateSessionToken, callOpenAI } from './utils';POST /api/chatbot/chat
+
 Host: api.askmysite.com
-Authorization: Bearer sk_live_1234567890abcdef
-Content-Type: application/json
+
+const app = express();Authorization: Bearer sk_live_1234567890abcdef
+
+app.use(express.json());Content-Type: application/json
+
 Origin: https://example.com
 
-{
-  "message": "What are your business hours?",
+// ============================================================================
+
+// 1. GET CONFIG (Cached by widget for 24h){
+
+// ============================================================================  "message": "What are your business hours?",
+
   "conversationId": "conv_abc123xyz"
-}
-```
 
-### Request Body
+app.get('/api/chatbot/config', async (req, res) => {}
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `message` | string | ✅ | User's message (max 2000 chars) |
-| `conversationId` | string | ❌ | Optional conversation context ID |
+  try {```
+
+    // 1. Extract and validate API key
+
+    const apiKey = req.headers.authorization?.replace('Bearer ', '');### Request Body
+
+    if (!apiKey) {
+
+      return res.status(401).json({| Field | Type | Required | Description |
+
+        success: false,|-------|------|----------|-------------|
+
+        error: 'API key required'| `message` | string | ✅ | User's message (max 2000 chars) |
+
+      });| `conversationId` | string | ❌ | Optional conversation context ID |
+
+    }
 
 ### Response (Success - 200 OK)
 
-```json
-{
-  "success": true,
+    // 2. Find chatbot by API key
+
+    const chatbot = await prisma.chatbot.findUnique({```json
+
+      where: { apiKey }{
+
+    });  "success": true,
+
   "data": {
-    "message": "We're open Monday to Friday, 9 AM to 6 PM EST. We're also available via email 24/7 at support@example.com.",
-    "conversationId": "conv_abc123xyz"
-  }
-}
-```
+
+    if (!chatbot || !chatbot.isActive) {    "message": "We're open Monday to Friday, 9 AM to 6 PM EST. We're also available via email 24/7 at support@example.com.",
+
+      return res.status(401).json({    "conversationId": "conv_abc123xyz"
+
+        success: false,  }
+
+        error: 'Invalid API key'}
+
+      });```
+
+    }
 
 ### Response Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `message` | string | AI-generated response |
-| `conversationId` | string | Conversation ID for context tracking |
+    // 3. Validate origin domain
 
-### Backend Logic
+    const origin = req.headers.origin;| Field | Type | Description |
+
+    if (origin && !isAllowedOrigin(origin, chatbot.allowedDomains)) {|-------|------|-------------|
+
+      return res.status(403).json({| `message` | string | AI-generated response |
+
+        success: false,| `conversationId` | string | Conversation ID for context tracking |
+
+        error: 'Domain not authorized'
+
+      });### Backend Logic
+
+    }
 
 ```typescript
-// Example implementation
-app.post('/api/chatbot/chat', async (req, res) => {
-  try {
-    // 1. Validate API key (same as above)
-    const apiKey = req.headers.authorization?.replace('Bearer ', '');
-    const chatbot = await validateApiKey(apiKey);
-    if (!chatbot) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid API key'
-      });
-    }
 
-    // 2. Validate domain
-    const origin = req.headers.origin;
+    // 4. Return configuration// Example implementation
+
+    res.json({app.post('/api/chatbot/chat', async (req, res) => {
+
+      success: true,  try {
+
+      config: {    // 1. Validate API key (same as above)
+
+        chatbotName: chatbot.name,    const apiKey = req.headers.authorization?.replace('Bearer ', '');
+
+        welcomeMessage: chatbot.welcomeMessage,    const chatbot = await validateApiKey(apiKey);
+
+        businessProfile: chatbot.businessProfile,    if (!chatbot) {
+
+        assistantProfile: chatbot.assistantProfile,      return res.status(401).json({
+
+        primaryColor: chatbot.primaryColor,        success: false,
+
+        position: chatbot.position,        error: 'Invalid API key'
+
+        siteName: chatbot.siteName,      });
+
+        siteUrl: chatbot.siteUrl,    }
+
+        avatarUrl: chatbot.avatarUrl
+
+      }    // 2. Validate domain
+
+    });    const origin = req.headers.origin;
+
     if (!chatbot.allowedDomains.includes(origin)) {
-      return res.status(403).json({
-        success: false,
-        error: 'Domain not authorized'
-      });
-    }
 
-    // 3. Rate limiting check
-    const rateLimitOk = await checkRateLimit(apiKey);
+  } catch (error) {      return res.status(403).json({
+
+    console.error('Config error:', error);        success: false,
+
+    res.status(500).json({        error: 'Domain not authorized'
+
+      success: false,      });
+
+      error: 'Internal server error'    }
+
+    });
+
+  }    // 3. Rate limiting check
+
+});    const rateLimitOk = await checkRateLimit(apiKey);
+
     if (!rateLimitOk) {
-      return res.status(429).json({
-        success: false,
-        error: 'Rate limit exceeded'
-      });
-    }
 
-    // 4. Extract message and conversation ID
-    const { message, conversationId } = req.body;
+// ============================================================================      return res.status(429).json({
 
-    if (!message || message.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Message is required'
+// 2. POST CHAT (Auto-creates session)        success: false,
+
+// ============================================================================        error: 'Rate limit exceeded'
+
       });
+
+app.post('/api/chatbot/chat', async (req, res) => {    }
+
+  try {
+
+    // 1. Validate API key    // 4. Extract message and conversation ID
+
+    const apiKey = req.headers.authorization?.replace('Bearer ', '');    const { message, conversationId } = req.body;
+
+    const chatbot = await validateApiKey(apiKey);
+
+        if (!message || message.length === 0) {
+
+    if (!chatbot) {      return res.status(400).json({
+
+      return res.status(401).json({        success: false,
+
+        success: false,        error: 'Message is required'
+
+        error: 'Invalid API key'      });
+
+      });    }
+
     }
 
     if (message.length > 2000) {
-      return res.status(400).json({
-        success: false,
-        error: 'Message too long (max 2000 characters)'
-      });
-    }
 
-    // 5. Retrieve or create conversation
-    let conversation;
+    // 2. Validate domain      return res.status(400).json({
+
+    const origin = req.headers.origin;        success: false,
+
+    if (origin && !isAllowedOrigin(origin, chatbot.allowedDomains)) {        error: 'Message too long (max 2000 characters)'
+
+      return res.status(403).json({      });
+
+        success: false,    }
+
+        error: 'Domain not authorized'
+
+      });    // 5. Retrieve or create conversation
+
+    }    let conversation;
+
     if (conversationId) {
-      conversation = await db.conversations.findOne({ id: conversationId });
-    }
-    
-    if (!conversation) {
-      conversation = await db.conversations.create({
-        id: generateConversationId(),
-        chatbotId: chatbot.id,
-        messages: []
-      });
-    }
 
-    // 6. Get chatbot context from crawled content
+    // 3. Get or create session      conversation = await db.conversations.findOne({ id: conversationId });
+
+    let sessionToken = req.headers['x-session-token'] as string;    }
+
+    let session;    
+
+    let isNewSession = false;    if (!conversation) {
+
+      conversation = await db.conversations.create({
+
+    if (sessionToken) {        id: generateConversationId(),
+
+      // Try to find existing session        chatbotId: chatbot.id,
+
+      session = await prisma.chatSession.findUnique({        messages: []
+
+        where: { sessionToken },      });
+
+        include: { messages: { orderBy: { createdAt: 'asc' } } }    }
+
+      });
+
+    }    // 6. Get chatbot context from crawled content
+
     const context = await db.chatbotContent.findOne({ chatbotId: chatbot.id });
 
-    // 7. Build ChatGPT prompt
-    const systemPrompt = buildSystemPrompt(chatbot, context);
-    const conversationHistory = conversation.messages.map(m => ({
-      role: m.role,
-      content: m.content
-    }));
+    if (!session) {
 
-    // 8. Call ChatGPT API
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: systemPrompt },
+      // Create new session    // 7. Build ChatGPT prompt
+
+      sessionToken = generateSessionToken();    const systemPrompt = buildSystemPrompt(chatbot, context);
+
+      session = await prisma.chatSession.create({    const conversationHistory = conversation.messages.map(m => ({
+
+        data: {      role: m.role,
+
+          chatbotId: chatbot.id,      content: m.content
+
+          sessionToken,    }));
+
+          isActive: true
+
+        },    // 8. Call ChatGPT API
+
+        include: { messages: true }    const completion = await openai.chat.completions.create({
+
+      });      model: "gpt-4",
+
+      isNewSession = true;      messages: [
+
+    }        { role: "system", content: systemPrompt },
+
         ...conversationHistory,
-        { role: "user", content: message }
-      ],
-      max_tokens: 500,
-      temperature: 0.7,
-    });
 
-    const aiResponse = completion.choices[0].message.content;
+    // 4. Validate message        { role: "user", content: message }
+
+    const { message } = req.body;      ],
+
+    if (!message || typeof message !== 'string' || message.length === 0) {      max_tokens: 500,
+
+      return res.status(400).json({      temperature: 0.7,
+
+        success: false,    });
+
+        error: 'Message is required'
+
+      });    const aiResponse = completion.choices[0].message.content;
+
+    }
 
     // 9. Save messages to conversation
-    await db.conversations.update(conversation.id, {
-      $push: {
-        messages: [
-          { role: 'user', content: message, timestamp: new Date() },
-          { role: 'assistant', content: aiResponse, timestamp: new Date() }
-        ]
+
+    if (message.length > 2000) {    await db.conversations.update(conversation.id, {
+
+      return res.status(400).json({      $push: {
+
+        success: false,        messages: [
+
+        error: 'Message too long (max 2000 characters)'          { role: 'user', content: message, timestamp: new Date() },
+
+      });          { role: 'assistant', content: aiResponse, timestamp: new Date() }
+
+    }        ]
+
       }
-    });
 
-    // 10. Log usage for billing
-    await logUsage(chatbot.id, {
-      type: 'message',
-      tokens: completion.usage.total_tokens,
-      timestamp: new Date()
-    });
+    // 5. Rate limiting    });
 
-    // 11. Return response
+    const recentMessages = session.messages.filter(
+
+      m => Date.now() - new Date(m.createdAt).getTime() < 60000    // 10. Log usage for billing
+
+    );    await logUsage(chatbot.id, {
+
+    if (recentMessages.length >= 10) {      type: 'message',
+
+      return res.status(429).json({      tokens: completion.usage.total_tokens,
+
+        success: false,      timestamp: new Date()
+
+        error: 'Rate limit exceeded'    });
+
+      });
+
+    }    // 11. Return response
+
     res.json({
-      success: true,
-      data: {
-        message: aiResponse,
-        conversationId: conversation.id
+
+    // 6. Save user message      success: true,
+
+    const userMessage = await prisma.chatMessage.create({      data: {
+
+      data: {        message: aiResponse,
+
+        chatSessionId: session.id,        conversationId: conversation.id
+
+        role: 'user',      }
+
+        content: message    });
+
       }
-    });
 
-  } catch (error) {
+    });  } catch (error) {
+
     console.error('Chat error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to process message'
-    });
-  }
-});
-```
 
-### System Prompt Builder
+    // 7. Get chatbot content/context    res.status(500).json({
+
+    const context = await prisma.chatbotContent.findUnique({      success: false,
+
+      where: { chatbotId: chatbot.id }      error: 'Failed to process message'
+
+    });    });
+
+  }
+
+    // 8. Build conversation history});
+
+    const conversationHistory = session.messages.map(m => ({```
+
+      role: m.role,
+
+      content: m.content### System Prompt Builder
+
+    }));
 
 ```typescript
-function buildSystemPrompt(chatbot, context) {
-  const profilePrompts = {
-    ecommerce: "You are a helpful e-commerce assistant focused on helping customers find products and complete purchases.",
-    saas: "You are a technical support assistant helping users understand features and troubleshoot issues.",
-    professional: "You are a professional consultant providing expert advice and information.",
-    content: "You are a knowledgeable assistant helping users find and understand content."
-  };
 
-  return `${profilePrompts[chatbot.businessProfile]}
+    // 9. Call OpenAI/ChatGPTfunction buildSystemPrompt(chatbot, context) {
 
-Your name is ${chatbot.chatbotName}.
-You represent a company/website with the following information:
+    const aiResponse = await callOpenAI({  const profilePrompts = {
 
-${context.summary}
+      chatbot,    ecommerce: "You are a helpful e-commerce assistant focused on helping customers find products and complete purchases.",
 
-Important guidelines:
+      context: context?.content || '',    saas: "You are a technical support assistant helping users understand features and troubleshoot issues.",
+
+      history: conversationHistory,    professional: "You are a professional consultant providing expert advice and information.",
+
+      userMessage: message    content: "You are a knowledgeable assistant helping users find and understand content."
+
+    });  };
+
+
+
+    // 10. Save assistant message  return `${profilePrompts[chatbot.businessProfile]}
+
+    const assistantMessage = await prisma.chatMessage.create({
+
+      data: {Your name is ${chatbot.chatbotName}.
+
+        chatSessionId: session.id,You represent a company/website with the following information:
+
+        role: 'assistant',
+
+        content: aiResponse${context.summary}
+
+      }
+
+    });Important guidelines:
+
 - Respond in ${chatbot.primaryLanguage} language
-- Keep responses short, clear, and precise (aim for 2-3 sentences)
-- Only answer based on the provided context
-- If you don't know something, politely say so and suggest contacting support
-- Be friendly, professional, and helpful
-- Never make up information not in the context`;
-}
-```
+
+    // 11. Update session- Keep responses short, clear, and precise (aim for 2-3 sentences)
+
+    await prisma.chatSession.update({- Only answer based on the provided context
+
+      where: { id: session.id },- If you don't know something, politely say so and suggest contacting support
+
+      data: {- Be friendly, professional, and helpful
+
+        lastMessageAt: new Date(),- Never make up information not in the context`;
+
+        messageCount: { increment: 2 }}
+
+      }```
+
+    });
 
 ### Error Responses
 
-```json
-// 400 Bad Request
-{
-  "success": false,
-  "error": "Message is required"
-}
+    // 12. Return response
 
-// 401 Unauthorized
-{
-  "success": false,
-  "error": "Invalid API key"
-}
+    const response: any = {```json
 
-// 403 Forbidden
-{
+      success: true,// 400 Bad Request
+
+      message: {{
+
+        id: assistantMessage.id,  "success": false,
+
+        role: 'assistant',  "error": "Message is required"
+
+        content: assistantMessage.content,}
+
+        createdAt: assistantMessage.createdAt.toISOString()
+
+      }// 401 Unauthorized
+
+    };{
+
   "success": false,
+
+    // Include session token only for new sessions  "error": "Invalid API key"
+
+    if (isNewSession) {}
+
+      response.sessionToken = sessionToken;
+
+    }// 403 Forbidden
+
+{
+
+    res.json(response);  "success": false,
+
   "error": "Domain not authorized"
-}
 
-// 429 Too Many Requests
-{
-  "success": false,
-  "error": "Rate limit exceeded. Please try again later."
-}
+  } catch (error) {}
+
+    console.error('Chat error:', error);
+
+    res.status(500).json({// 429 Too Many Requests
+
+      success: false,{
+
+      error: 'Failed to process message'  "success": false,
+
+    });  "error": "Rate limit exceeded. Please try again later."
+
+  }}
+
+});
 
 // 500 Internal Server Error
-{
-  "success": false,
-  "error": "Failed to process message"
+
+// ============================================================================{
+
+// UTILITY FUNCTIONS  "success": false,
+
+// ============================================================================  "error": "Failed to process message"
+
 }
-```
 
----
+function generateSessionToken(): string {```
 
-## 🛡️ Security Implementation
+  return 'session_' + crypto.randomBytes(32).toString('hex');
 
-### 1. API Key Management
+}---
 
-```typescript
-// Generate API key
-function generateApiKey(type: 'live' | 'test') {
-  const prefix = type === 'live' ? 'sk_live_' : 'sk_test_';
-  const random = crypto.randomBytes(24).toString('hex');
-  return prefix + random;
+
+
+function isAllowedOrigin(origin: string, allowedDomains: string[]): boolean {## 🛡️ Security Implementation
+
+  const originDomain = new URL(origin).hostname;
+
+  ### 1. API Key Management
+
+  // Allow localhost for development
+
+  if (originDomain === 'localhost' || originDomain === '127.0.0.1') {```typescript
+
+    return true;// Generate API key
+
+  }function generateApiKey(type: 'live' | 'test') {
+
+    const prefix = type === 'live' ? 'sk_live_' : 'sk_test_';
+
+  return allowedDomains.some(domain =>   const random = crypto.randomBytes(24).toString('hex');
+
+    originDomain === domain || originDomain.endsWith(`.${domain}`)  return prefix + random;
+
+  );}
+
 }
 
 // Hash API key for storage
-function hashApiKey(apiKey: string) {
-  return crypto.createHash('sha256').update(apiKey).digest('hex');
-}
-```
 
-### 2. Domain Validation
+async function validateApiKey(apiKey: string | undefined) {function hashApiKey(apiKey: string) {
 
-```typescript
-function validateDomain(chatbot, requestOrigin) {
-  // Allow localhost for development
-  if (chatbot.environment === 'test' && 
-      requestOrigin.includes('localhost')) {
-    return true;
+  if (!apiKey) return null;  return crypto.createHash('sha256').update(apiKey).digest('hex');
+
   }
 
-  // Check against whitelist
-  return chatbot.allowedDomains.some(domain => {
-    const originDomain = new URL(requestOrigin).hostname;
-    return originDomain === domain || originDomain.endsWith(`.${domain}`);
-  });
-}
-```
+  return await prisma.chatbot.findUnique({```
 
-### 3. Rate Limiting
+    where: { apiKey, isActive: true }
+
+  });### 2. Domain Validation
+
+}
 
 ```typescript
-// Example using Redis
+
+async function callOpenAI({ chatbot, context, history, userMessage }) {function validateDomain(chatbot, requestOrigin) {
+
+  const systemPrompt = buildSystemPrompt(chatbot, context);  // Allow localhost for development
+
+    if (chatbot.environment === 'test' && 
+
+  const response = await openai.chat.completions.create({      requestOrigin.includes('localhost')) {
+
+    model: 'gpt-4',    return true;
+
+    messages: [  }
+
+      { role: 'system', content: systemPrompt },
+
+      ...history,  // Check against whitelist
+
+      { role: 'user', content: userMessage }  return chatbot.allowedDomains.some(domain => {
+
+    ],    const originDomain = new URL(requestOrigin).hostname;
+
+    max_tokens: 500,    return originDomain === domain || originDomain.endsWith(`.${domain}`);
+
+    temperature: 0.7  });
+
+  });}
+
+  ```
+
+  return response.choices[0].message.content;
+
+}### 3. Rate Limiting
+
+
+
+function buildSystemPrompt(chatbot, context) {```typescript
+
+  return `You are ${chatbot.name}, a ${chatbot.assistantProfile} assistant for ${chatbot.siteName}.// Example using Redis
+
 async function checkRateLimit(apiKey: string) {
-  const key = `ratelimit:${apiKey}`;
-  const limit = 60; // 60 requests per minute
+
+Website: ${chatbot.siteUrl}  const key = `ratelimit:${apiKey}`;
+
+Business Type: ${chatbot.businessProfile}  const limit = 60; // 60 requests per minute
+
   const window = 60; // 1 minute in seconds
 
-  const count = await redis.incr(key);
-  if (count === 1) {
-    await redis.expire(key, window);
-  }
+Context about the website:
 
-  return count <= limit;
-}
+${context}  const count = await redis.incr(key);
+
+  if (count === 1) {
+
+Guidelines:    await redis.expire(key, window);
+
+- Keep responses short and precise (2-3 sentences)  }
+
+- Only answer based on the provided context
+
+- If you don't know, suggest contacting support  return count <= limit;
+
+- Be friendly and helpful`;}
+
+}```
+
 ```
 
 ### 4. Input Sanitization
 
+---
+
 ```typescript
-function sanitizeMessage(message: string) {
+
+## 🗄️ Database Schemafunction sanitizeMessage(message: string) {
+
   // Remove potentially harmful content
-  return message
+
+### Prisma Schema  return message
+
     .trim()
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .substring(0, 2000); // Max length
-}
+
+```prisma    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+
+model Chatbot {    .substring(0, 2000); // Max length
+
+  id               String        @id @default(cuid())}
+
+  userId           String```
+
+  apiKey           String        @unique
+
+  name             String---
+
+  welcomeMessage   String        @db.Text
+
+  businessProfile  String## 🧪 Testing
+
+  assistantProfile String?
+
+  primaryColor     String### Test API Key
+
+  position         StringCreate test keys for development:
+
+  siteName         String```
+
+  siteUrl          Stringsk_test_development123456789
+
+  avatarUrl        String?```
+
+  allowedDomains   String[]
+
+  isActive         Boolean       @default(true)### Postman Collection
+
+  sessions         ChatSession[]
+
+  createdAt        DateTime      @default(now())```json
+
+  updatedAt        DateTime      @updatedAt{
+
+    "info": { "name": "AskMySite Widget API" },
+
+  @@index([apiKey])  "item": [
+
+}    {
+
+      "name": "Get Config",
+
+model ChatSession {      "request": {
+
+  id            String        @id @default(cuid())        "method": "GET",
+
+  chatbotId     String        "header": [
+
+  chatbot       Chatbot       @relation(fields: [chatbotId], references: [id])          {
+
+  sessionToken  String        @unique            "key": "Authorization",
+
+  startedAt     DateTime      @default(now())            "value": "Bearer sk_test_development123456789"
+
+  lastMessageAt DateTime      @default(now())          }
+
+  isActive      Boolean       @default(true)        ],
+
+  messageCount  Int           @default(0)        "url": "https://api.askmysite.com/api/chatbot/config"
+
+  messages      ChatMessage[]      }
+
+      },
+
+  @@index([chatbotId])    {
+
+  @@index([sessionToken])      "name": "Send Message",
+
+}      "request": {
+
+        "method": "POST",
+
+model ChatMessage {        "header": [
+
+  id            String       @id @default(cuid())          {
+
+  chatSessionId String            "key": "Authorization",
+
+  chatSession   ChatSession  @relation(fields: [chatSessionId], references: [id])            "value": "Bearer sk_test_development123456789"
+
+  role          String       // "user" or "assistant"          },
+
+  content       String       @db.Text          {
+
+  createdAt     DateTime     @default(now())            "key": "Content-Type",
+
+              "value": "application/json"
+
+  @@index([chatSessionId])          }
+
+  @@index([createdAt])        ],
+
+}        "body": {
+
+          "mode": "raw",
+
+model ChatbotContent {          "raw": "{\n  \"message\": \"Hello, can you help me?\"\n}"
+
+  id         String   @id @default(cuid())        },
+
+  chatbotId  String   @unique        "url": "https://api.askmysite.com/api/chatbot/chat"
+
+  content    String   @db.Text      }
+
+  updatedAt  DateTime @updatedAt    }
+
+}  ]
+
+```}
+
 ```
 
 ---
-
-## 🧪 Testing
-
-### Test API Key
-Create test keys for development:
-```
-sk_test_development123456789
-```
-
-### Postman Collection
-
-```json
-{
-  "info": { "name": "AskMySite Widget API" },
-  "item": [
-    {
-      "name": "Get Config",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer sk_test_development123456789"
-          }
-        ],
-        "url": "https://api.askmysite.com/api/chatbot/config"
-      }
-    },
-    {
-      "name": "Send Message",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer sk_test_development123456789"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"message\": \"Hello, can you help me?\"\n}"
-        },
-        "url": "https://api.askmysite.com/api/chatbot/chat"
-      }
-    }
-  ]
-}
-```
 
 ### cURL Examples
 
+## 🔒 Security Checklist
+
 ```bash
-# Get configuration
-curl -X GET https://api.askmysite.com/api/chatbot/config \
-  -H "Authorization: Bearer sk_test_development123456789"
 
-# Send message
+- ✅ API key validation on every request# Get configuration
+
+- ✅ Domain origin verificationcurl -X GET https://api.askmysite.com/api/chatbot/config \
+
+- ✅ Session token validation  -H "Authorization: Bearer sk_test_development123456789"
+
+- ✅ Rate limiting (10 messages/minute per session)
+
+- ✅ Message length limits (2000 chars)# Send message
+
+- ✅ HTTPS onlycurl -X POST https://api.askmysite.com/api/chatbot/chat \
+
+- ✅ CORS configuration  -H "Authorization: Bearer sk_test_development123456789" \
+
+- ✅ SQL injection protection (Prisma)  -H "Content-Type: application/json" \
+
+- ✅ Input sanitization  -d '{"message": "What are your hours?"}'
+
+
+
+---# With conversation ID
+
 curl -X POST https://api.askmysite.com/api/chatbot/chat \
-  -H "Authorization: Bearer sk_test_development123456789" \
+
+## 🧪 Testing with cURL  -H "Authorization: Bearer sk_test_development123456789" \
+
   -H "Content-Type: application/json" \
-  -d '{"message": "What are your hours?"}'
 
-# With conversation ID
-curl -X POST https://api.askmysite.com/api/chatbot/chat \
-  -H "Authorization: Bearer sk_test_development123456789" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "Thank you!",
-    "conversationId": "conv_abc123xyz"
-  }'
-```
+### Get Config  -d '{
 
----
+```bash    "message": "Thank you!",
 
-## 📊 Database Schema
+curl -X GET https://api.askmysite.com/api/chatbot/config \    "conversationId": "conv_abc123xyz"
 
-### Chatbots Table
+  -H "Authorization: Bearer cb_test_123"  }'
 
-```sql
+``````
+
+
+
+### Send First Message (No Session)---
+
+```bash
+
+curl -X POST https://api.askmysite.com/api/chatbot/chat \## 📊 Database Schema
+
+  -H "Authorization: Bearer cb_test_123" \
+
+  -H "Content-Type: application/json" \### Chatbots Table
+
+  -d '{"message": "Hello!"}'
+
+``````sql
+
 CREATE TABLE chatbots (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  api_key_hash VARCHAR(64) UNIQUE NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  welcome_message TEXT NOT NULL,
-  business_profile VARCHAR(50) NOT NULL,
-  primary_language VARCHAR(10) NOT NULL,
-  primary_color VARCHAR(7) NOT NULL,
+
+### Send Follow-up Message (With Session)  id UUID PRIMARY KEY,
+
+```bash  user_id UUID REFERENCES users(id),
+
+curl -X POST https://api.askmysite.com/api/chatbot/chat \  api_key_hash VARCHAR(64) UNIQUE NOT NULL,
+
+  -H "Authorization: Bearer cb_test_123" \  name VARCHAR(255) NOT NULL,
+
+  -H "X-Session-Token: session_abc123" \  welcome_message TEXT NOT NULL,
+
+  -H "Content-Type: application/json" \  business_profile VARCHAR(50) NOT NULL,
+
+  -d '{"message": "Tell me more"}'  primary_language VARCHAR(10) NOT NULL,
+
+```  primary_color VARCHAR(7) NOT NULL,
+
   avatar_url TEXT,
-  position VARCHAR(20) NOT NULL,
+
+---  position VARCHAR(20) NOT NULL,
+
   allowed_domains TEXT[] NOT NULL,
-  environment VARCHAR(10) NOT NULL, -- 'test' or 'live'
+
+## 📊 Analytics Tracking  environment VARCHAR(10) NOT NULL, -- 'test' or 'live'
+
   is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
 
-### Conversations Table
+Track these metrics:  created_at TIMESTAMP DEFAULT NOW(),
 
-```sql
+- Total sessions created  updated_at TIMESTAMP DEFAULT NOW()
+
+- Messages per session);
+
+- Common questions (word frequency)```
+
+- Response times
+
+- Error rates### Conversations Table
+
+- Active sessions
+
+- Session duration```sql
+
 CREATE TABLE conversations (
-  id VARCHAR(50) PRIMARY KEY,
+
+---  id VARCHAR(50) PRIMARY KEY,
+
   chatbot_id UUID REFERENCES chatbots(id),
-  messages JSONB NOT NULL DEFAULT '[]',
+
+## ✅ Implementation Checklist  messages JSONB NOT NULL DEFAULT '[]',
+
   created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
 
-### Usage Logs Table (for billing)
+- [ ] Create database schema (Chatbot, ChatSession, ChatMessage)  updated_at TIMESTAMP DEFAULT NOW()
 
-```sql
-CREATE TABLE usage_logs (
-  id UUID PRIMARY KEY,
-  chatbot_id UUID REFERENCES chatbots(id),
-  type VARCHAR(20) NOT NULL, -- 'message', 'config'
-  tokens INTEGER,
-  timestamp TIMESTAMP DEFAULT NOW()
-);
+- [ ] Implement GET /api/chatbot/config endpoint);
+
+- [ ] Implement POST /api/chatbot/chat endpoint```
+
+- [ ] Add API key validation
+
+- [ ] Add domain origin validation### Usage Logs Table (for billing)
+
+- [ ] Add session token generation
+
+- [ ] Add auto-session creation logic```sql
+
+- [ ] Integrate OpenAI/ChatGPT APICREATE TABLE usage_logs (
+
+- [ ] Add rate limiting  id UUID PRIMARY KEY,
+
+- [ ] Add error handling  chatbot_id UUID REFERENCES chatbots(id),
+
+- [ ] Add CORS configuration  type VARCHAR(20) NOT NULL, -- 'message', 'config'
+
+- [ ] Add logging/monitoring  tokens INTEGER,
+
+- [ ] Test with widget  timestamp TIMESTAMP DEFAULT NOW()
+
+- [ ] Deploy to production);
+
 ```
 
 ---
+
+---
+
+## 📚 Key Differences from Previous Version
 
 ## 🚦 CORS Configuration
 
-```javascript
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
+### Old System (Conversation ID)
+
+- ❌ conversationId in request body```javascript
+
+- ❌ conversationId in responseconst corsOptions = {
+
+- ❌ No caching strategy  origin: function (origin, callback) {
+
+- ❌ No message persistence    // Allow requests with no origin (mobile apps, Postman, etc.)
+
     if (!origin) return callback(null, true);
 
-    // Check if origin is in chatbot's allowed domains
-    // This is simplified - in production, query database
-    callback(null, true);
-  },
-  credentials: true,
-  methods: ['GET', 'POST'],
+### New System (Session Token)
+
+- ✅ X-Session-Token in header    // Check if origin is in chatbot's allowed domains
+
+- ✅ sessionToken only on first message    // This is simplified - in production, query database
+
+- ✅ 24h config caching in localStorage    callback(null, true);
+
+- ✅ Messages persisted in localStorage  },
+
+- ✅ Auto-session creation  credentials: true,
+
+- ✅ Instant widget load  methods: ['GET', 'POST'],
+
   allowedHeaders: ['Authorization', 'Content-Type'],
-};
 
-app.use(cors(corsOptions));
+---};
+
+
+
+## 🎯 Benefits of New Architectureapp.use(cors(corsOptions));
+
 ```
 
----
+### ⚡ Performance
 
-## 📈 Monitoring & Logging
+- Config cached 24h → Almost zero config API calls---
 
-### Key Metrics to Track
-- API requests per chatbot
-- Average response time
-- Error rates
+- Messages in localStorage → Instant chat history
+
+- Session auto-created → One less round trip## 📈 Monitoring & Logging
+
+
+
+### 🎯 Simplicity### Key Metrics to Track
+
+- Only 2 endpoints- API requests per chatbot
+
+- No separate session init endpoint- Average response time
+
+- Widget handles all caching logic- Error rates
+
 - Token usage (for billing)
-- Popular questions
-- Conversation lengths
 
-### Logging Example
+### 🔒 Security- Popular questions
 
-```typescript
+- Session tokens in headers (not body)- Conversation lengths
+
+- Rate limiting per session
+
+- Domain validation### Logging Example
+
+
+
+---```typescript
+
 logger.info('Chat request', {
-  chatbotId: chatbot.id,
+
+## 💬 Widget Implementation Status  chatbotId: chatbot.id,
+
   conversationId: conversation.id,
-  messageLength: message.length,
-  responseTime: Date.now() - startTime,
-  tokens: completion.usage.total_tokens
-});
-```
+
+The widget is fully implemented with:  messageLength: message.length,
+
+- ✅ 24h config caching in localStorage  responseTime: Date.now() - startTime,
+
+- ✅ Message persistence in localStorage  tokens: completion.usage.total_tokens
+
+- ✅ Auto-session management});
+
+- ✅ X-Session-Token header support```
+
+- ✅ Instant load with cached data
 
 ---
+
+**Ready for backend integration!** 🚀
 
 ## ✅ Implementation Checklist
 

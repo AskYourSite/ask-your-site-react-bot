@@ -14,12 +14,14 @@ export const AskMySite: React.FC<AskMySiteProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const serviceRef = useRef<AskMySiteService | null>(null);
 
+  // ============================================================================
+  // INITIALIZATION - Load config and stored messages
+  // ============================================================================
   useEffect(() => {
     if (!apiKey) {
       setError('API key is required');
@@ -28,72 +30,92 @@ export const AskMySite: React.FC<AskMySiteProps> = ({
 
     serviceRef.current = new AskMySiteService(apiKey, apiBaseUrl);
 
-    const loadConfig = async () => {
+    const initWidget = async () => {
       try {
+        // Fetch config (from cache or API)
         const fetchedConfig = await serviceRef.current!.fetchConfig();
         setConfig(fetchedConfig);
+
+        // Load stored messages from localStorage
+        const storedMessages = serviceRef.current!.getStoredMessages();
         
-        // Add welcome message
-        setMessages([{
-          id: '1',
-          role: 'assistant',
-          content: fetchedConfig.welcomeMessage,
-          timestamp: new Date(),
-        }]);
+        if (storedMessages.length > 0) {
+          // User has chat history - restore it
+          setMessages(storedMessages);
+        } else {
+          // New user - show welcome message
+          const welcomeMessage: Message = {
+            id: 'welcome-' + Date.now(),
+            role: 'assistant',
+            content: fetchedConfig.welcomeMessage,
+            createdAt: new Date().toISOString(),
+          };
+          setMessages([welcomeMessage]);
+          serviceRef.current!.saveMessages([welcomeMessage]);
+        }
       } catch (err) {
         setError('Failed to load chatbot configuration');
         console.error(err);
       }
     };
 
-    loadConfig();
+    initWidget();
   }, [apiKey, apiBaseUrl]);
 
+  // ============================================================================
+  // AUTO-SCROLL to latest message
+  // ============================================================================
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
+  // ============================================================================
+  // SEND MESSAGE - Auto-creates session, persists to localStorage
+  // ============================================================================
   const handleSendMessage = async () => {
     if (!inputValue.trim() || !serviceRef.current || loading) return;
 
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: 'user-' + Date.now(),
       role: 'user',
       content: inputValue.trim(),
-      timestamp: new Date(),
+      createdAt: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    // Add user message to UI and storage
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    serviceRef.current.saveMessages(updatedMessages);
+    
     setInputValue('');
     setLoading(true);
 
     try {
+      // Send to API (auto-creates session if needed via X-Session-Token header)
       const response = await serviceRef.current.sendMessage({
         message: userMessage.content,
-        conversationId,
       });
 
-      setConversationId(response.conversationId);
+      // Add assistant message to UI and storage
+      const messagesWithResponse = [...updatedMessages, response.message];
+      setMessages(messagesWithResponse);
+      serviceRef.current.saveMessages(messagesWithResponse);
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.message,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
       console.error('Error sending message:', err);
+      
       const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: 'error-' + Date.now(),
         role: 'assistant',
         content: 'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date(),
+        createdAt: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      
+      const messagesWithError = [...updatedMessages, errorMessage];
+      setMessages(messagesWithError);
+      serviceRef.current.saveMessages(messagesWithError);
     } finally {
       setLoading(false);
     }
