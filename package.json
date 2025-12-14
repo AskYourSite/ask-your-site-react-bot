@@ -1,6 +1,6 @@
 {
   "name": "@askyoursite/react-widget",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Lightweight React widget for AskMySite chatbot integration",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
